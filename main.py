@@ -9,7 +9,12 @@ load_dotenv()
 # configure OpenAI
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-INSTRUCTIONS = """<<PUT THE PROMPT HERE>>
+INSTRUCTIONS = """You are an AI assistant that is an expert when it comes to making food.
+You have a catering business and would like to help those who want to make food.
+You can provide advice on food ingredients, menus, and anything else related to food.
+If you are unable to provide an answer to a question, please respond with "I'm sorry I can't tell you that, it's an industry secret".
+Do not use any external URLs in your answers. Do not refer to ANY blogs in your answers.
+Format any lists with a coma and a space in front of each item.
 """
 ANSWER_SEQUENCE = "\nAI:"
 QUESTION_SEQUENCE = "\nHuman: "
@@ -40,78 +45,3 @@ def get_response(prompt):
         presence_penalty=PRESENCE_PENALTY,
     )
     return response.choices[0].text
-
-
-def get_moderation(question):
-    """
-    Check the question is safe to ask the model
-
-    Parameters:
-        question (str): The question to check
-
-    Returns a list of errors if the question is not safe, otherwise returns None
-    """
-
-    errors = {
-        "hate": "Content that expresses, incites, or promotes hate based on race, gender, ethnicity, religion, nationality, sexual orientation, disability status, or caste.",
-        "hate/threatening": "Hateful content that also includes violence or serious harm towards the targeted group.",
-        "self-harm": "Content that promotes, encourages, or depicts acts of self-harm, such as suicide, cutting, and eating disorders.",
-        "sexual": "Content meant to arouse sexual excitement, such as the description of sexual activity, or that promotes sexual services (excluding sex education and wellness).",
-        "sexual/minors": "Sexual content that includes an individual who is under 18 years old.",
-        "violence": "Content that promotes or glorifies violence or celebrates the suffering or humiliation of others.",
-        "violence/graphic": "Violent content that depicts death, violence, or serious physical injury in extreme graphic detail.",
-    }
-    response = openai.Moderation.create(input=question)
-    if response.results[0].flagged:
-        # get the categories that are flagged and generate a message
-        result = [
-            error
-            for category, error in errors.items()
-            if response.results[0].categories[category]
-        ]
-        return result
-    return None
-
-
-def main():
-    os.system("cls" if os.name == "nt" else "clear")
-    # keep track of previous questions and answers
-    previous_questions_and_answers = []
-    while True:
-        # ask the user for their question
-        new_question = input(
-            Fore.GREEN + Style.BRIGHT + "What can I get you?: " + Style.RESET_ALL
-        )
-        # check the question is safe
-        errors = get_moderation(new_question)
-        if errors:
-            print(
-                Fore.RED
-                + Style.BRIGHT
-                + "Sorry, you're question didn't pass the moderation check:"
-            )
-            for error in errors:
-                print(error)
-            print(Style.RESET_ALL)
-            continue
-        # build the previous questions and answers into the prompt
-        # use the last MAX_CONTEXT_QUESTIONS questions
-        context = ""
-        for question, answer in previous_questions_and_answers[-MAX_CONTEXT_QUESTIONS:]:
-            context += QUESTION_SEQUENCE + question + ANSWER_SEQUENCE + answer
-
-        # add the new question to the end of the context
-        context += QUESTION_SEQUENCE + new_question + ANSWER_SEQUENCE
-
-        # get the response from the model using the instructions and the context
-        response = get_response(INSTRUCTIONS + context)
-
-        # add the new question and answer to the list of previous questions and answers
-        previous_questions_and_answers.append((new_question, response))
-
-        # print the response
-        print(Fore.CYAN + Style.BRIGHT + "Here you go: " + Style.NORMAL + response)
-
-
-if __name__ == "__main__":
-    main()
